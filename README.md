@@ -64,7 +64,7 @@ The design requires 1 wire to be soldered, to connect :
 Both connections are on the same side of the board and the wire is pretty straight.
 Note that these indications are for a 15 inch MBP motherboard. But with signal names you will be able to find-out the proper connection on another model.
 
-![](https://imgur.com/a/v3I9YgA)
+![](https://i.imgur.com/4O0boMl.png)
 
 
 
