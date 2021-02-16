@@ -56,6 +56,7 @@ This new variant :
 - Generates a configurable 650Hz PWM signal to control the backlight
 - The PWM is configured with 16 pre-defined settings, similar than the one proposed the original Apple hardware
 - The settings can be changed by pressing 1/2 second on the BIL (Backlight Indicator Led) button of your MBP
+- Pressing several time or keeping your finger on the button will allow to cycle through all the settings. When Max brightness mode is reached, the loop restart at lower brightness.
 
 ## Hardware modification
 The design requires 1 wire to be soldered, to connect : 
@@ -66,5 +67,14 @@ Note that these indications are for a 15 inch MBP motherboard. But with signal n
 
 ![](https://i.imgur.com/4O0boMl.png)
 
+## JDEC file
+The JDEC file is located on the JDEC folder and is named GMUX_PWM_BIL_Button.jed
 
+## Source file
+The source file has not been checked-in yet, since I am not expert in github.
+They are anyway available for anybody who want them.
+
+## Misc information
+This designed has been tested successfully on 2 different 15' MBP (820-2915)
+The "black screen" setting (zero backlight) is not implemented because I don't like it (always have the feeling that computer is broken). If you need/want it it can be added in a few minutes.
 
