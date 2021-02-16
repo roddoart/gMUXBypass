@@ -47,3 +47,24 @@ I am not responsible for any damage this causes. This has been tested on an 820-
 
 ## License
 GPL
+
+# Added by Romain - New Variant - PWM Controller by BIL Button
+
+## Introduction
+Since the hardware modification and micro-soldering proposed above was too complicated for me, I tried to implement another RTL design in the Lattice FPGA.
+This new variant : 
+- Generates a configurable 650Hz PWM signal to control the backlight
+- The PWM is configured with 16 pre-defined settings, similar than the one proposed the original Apple hardware
+- The settings can be changed by pressing 1/2 second on the BIL (Backlight Indicator Led) button of your MBP
+
+## Hardware modification
+The design requires 1 wire to be soldered, to connect : 
+- The GMUX_PL6A free input of the Lattice FPGA. It is available on R9647 (nostuff). You will also see that a testpoint exist close to the Lattice.
+- The SMC_BIL_BUTTON_L signal, available on C6954.
+Both connections are on the same side of the board and the wire is pretty straight.
+Note that these indications are for a 15 inch MBP motherboard. But with signal names you will be able to find-out the proper connection on another model.
+
+![](https://imgur.com/a/v3I9YgA)
+
+
+
