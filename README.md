@@ -48,7 +48,7 @@ I am not responsible for any damage this causes. This has been tested on an 820-
 ## License
 GPL
 
-# Added by Romain - New Variant - PWM Controller by BIL Button
+# Added by Romain - New Variant - PWM Controlled by BIL Button
 
 ## Introduction
 Since the hardware modification and micro-soldering proposed above was too complicated for me, I tried to implement another RTL design in the Lattice FPGA.
