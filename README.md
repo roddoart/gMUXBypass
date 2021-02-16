@@ -60,9 +60,10 @@ This new variant :
 - Pressing several time or keeping your finger on the button will allow to cycle through all the settings. When Max brightness mode is reached, the loop restart at lower brightness.
 
 ## Hardware modification
-The design requires 1 wire to be soldered, to connect : 
+The design requires 1 wire to be soldered (easier than the PCH soldering), to connect : 
 - The GMUX_PL6A free input of the Lattice FPGA. It is available on R9647 (nostuff). You will also see that a testpoint exist close to the Lattice.
 - The SMC_BIL_BUTTON_L signal, available on C6954.
+
 Both connections are on the same side of the board and the wire is pretty straight.
 Note that these indications are for a 15 inch MBP motherboard. But with signal names you will be able to find-out the proper connection on another model.
 
