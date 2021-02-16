@@ -54,6 +54,7 @@ GPL
 Since the hardware modification and micro-soldering proposed above was too complicated for me, I tried to implement another RTL design in the Lattice FPGA.
 This new variant : 
 - Generates a configurable 650Hz PWM signal to control the backlight
+- Initial brightness setting at boot is 10/16
 - The PWM is configured with 16 pre-defined settings, similar than the one proposed the original Apple hardware
 - The settings can be changed by pressing 1/2 second on the BIL (Backlight Indicator Led) button of your MBP
 - Pressing several time or keeping your finger on the button will allow to cycle through all the settings. When Max brightness mode is reached, the loop restart at lower brightness.
