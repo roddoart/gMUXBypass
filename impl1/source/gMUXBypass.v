@@ -37,11 +37,18 @@ module gMUXBypass #(
 	output	LVDS_DDC_SEL_IG			,
 	output	LVDS_DDC_SEL_EG ,
 
+	/////////////////
 	/// Modifications by Romain to implement PWM generation ///
 	// Clock input
 	input	LPC_CLK33M_GMUX ,
 	// Button input
-	input	GMUX_PL6A
+	input	GMUX_PL6A,
+	
+	/// LPC IO PORT
+	inout	[3:0]	LPC_AD ,
+	input	LPC_FRAME_L,
+	input	LPCPLUS_RESET_L
+	/////////////////
 );
 
 	assign LVDS_A_DATA[2:0] = LVDS_IG_A_DATA[2:0];
@@ -67,31 +74,50 @@ module gMUXBypass #(
 	assign LVDS_DDC_SEL_IG		= 1;
 	assign LVDS_DDC_SEL_EG		= 0;
 	
-	/// Modifications by Romain to implement PWM generation ///
-	//Slow clock generation
-	//clock_pwm : clock used to generate the PWM waveform
-	//  Spec target around 65 KHz, to obtain 650Hz PWM signal freq
-	//  Use 33MHz divided by 2e9 
+	/////////////////
+	/// Modifications by Romain to implement an LPC Interface
+	
+	// Reset values for backlight and max_backlight
+	reg [31:0] backlight='d49949; //reset value for the backlight : 35% duty clycle
+	reg [31:0] max_backlight ='d142711; //constant value ; get 200Hz PWM freq
+	
+	wire [15:0] address;
+	reg [7:0] data_rd;
+	reg [7:0] temp;
+	wire [7:0] data_wr;
+	wire rd_en;
+	wire wr_en;
+	
 	//clock_button : clock used to filter the button
 	//  Spec target 2 Hz (half second press)
 	//  Use 33Mhz divided by 2e24 gives 1.96 Hz
 	reg[27:0] counter=0;
-		reg clock_pwm=1'b0;
 	reg clock_button=1'b0;
 	parameter CNTMAX = 'hffffff;
 
-	//Clock generator
 	always @(posedge LPC_CLK33M_GMUX)
 	begin
 	 counter <= counter + 1;
 	 if(counter>=(CNTMAX-1))
 	   counter <= 'h0;
-	 clock_pwm <= counter[8] ; // ~65KHz
 	 clock_button <= counter[23] ; // ~2Hz
 	end
-
-	//Button capture
-	reg [4:0] duty_cycle = 'd10; //17-values backlight, reset at level 10, zero ignored
+	
+	//Button capture : 
+	reg [4:0] duty_cycle = 'd11; //17-values backlight, reset at level 10, zero ignored
+	wire button_pressed ;
+	reg button_pressed_d = 1'b0;
+	wire button_event ;
+	
+	// Create button event @33MHz, with auto-repeat @2Hz
+	assign button_pressed = (!GMUX_PL6A & clock_button) ;
+	always @(posedge LPC_CLK33M_GMUX)
+	begin
+		button_pressed_d <= button_pressed ;
+	end
+	assign button_event = (button_pressed && !button_pressed_d)?1:0 ;
+	
+	// Duty cycle loop : create the rolling 16-state backlight loop
 	always @(posedge clock_button)
 	 begin
 	  if (GMUX_PL6A==1'b0)
@@ -99,59 +125,113 @@ module gMUXBypass #(
 		duty_cycle <= duty_cycle +1;
 		if(duty_cycle>='d16)
 		  duty_cycle <='d1; //I ignore the '0' setting because I don't like the fully black screen
-	    end
-	  end
-
-	//PWM output
-	// 100 time slices to build the PWM directly from the %duty_cycles
-	// the duty cycles were scoped on a working 2010 13-inch MBP
-	// -----------------------
-	// Step		Duty-Cycle (%)
-	// ----		--------------
-	// 0		0
-	// 1		1.77
-	// 2		2.88
-	// 3		4.26
-	// 4		6.09
-	// 5		8.3
-	// 6		11.11
-	// 7		14.5
-	// 8		18.6
-	// 9		23.7
-	// 10		28.9
-	// 11		35.1
-	// 12		42.4
-	// 13		51.16
-	// 14		61.77
-	// 15		74.22
-	// 16		89.1
-	// -----------------------
+	    end //if
+	  end //always
 	
-	reg[6:0] counter_PWM = 0;
-	always @(posedge clock_pwm)
+	// LPC peripheral
+	LPC_Peri IOPORT(
+	.lclk (LPC_CLK33M_GMUX), 
+	.lreset_n (LPCPLUS_RESET_L), 
+    .lframe_n (LPC_FRAME_L), 
+    .lad_in (LPC_AD), 
+    .addr_hit(1'b1),
+    .current_state(),
+    .din(data_rd),
+    .lpc_data_in(data_wr),
+    .lpc_data_out(),
+    .lpc_addr(address),
+    .lpc_en(),
+    .io_rden_sm(rd_en),
+    .io_wren_sm(wr_en)
+	);
+
+	always @(posedge LPC_CLK33M_GMUX)
+	begin
+	/// LPC Write Operation
+	/// BACKLIGHT Register, Address 0x0774, 0x0775, 0x0776, 0x0777
+	/// MAX_BACKLIGHT Register, Address 0x0770, 0x0771, 0x0772, 0x0773
+		if (wr_en)	begin
+		case(address)
+				//'h0770 : max_backlight[7:0] <= data_wr ;
+				//'h0771 : max_backlight[15:8] <= data_wr ;
+				//'h0772 : max_backlight[23:16] <= data_wr ;
+				//'h0773 : max_backlight[31:24] <= data_wr ;
+				'h0774 : backlight[7:0] <= data_wr ;
+				'h0775 : backlight[15:8] <= data_wr ;
+				'h0776 : backlight[23:16] <= data_wr ;
+				'h0777 : backlight[31:24] <= data_wr ;
+				default : ;
+		endcase
+		end //if wr_en
+	/// BIL Button write operation
+	/// Use 16 pre-defined values, obtained by retro-engineering of the PWM signal from a 13" MBP 2011
+		if (button_event) begin
+		case (duty_cycle)
+			'd1 : backlight <= 'd2854 ;
+			'd2 : backlight <= 'd4281 ;
+			'd3 : backlight <= 'd5708 ;
+			'd4 : backlight <= 'd8563 ;
+			'd5 : backlight <= 'd11417 ;
+			'd6 : backlight <= 'd15698 ;
+			'd7 : backlight <= 'd19980 ;
+			'd8 : backlight <= 'd25688 ;
+			'd9 : backlight <= 'd34251 ;
+			'd10 : backlight <= 'd41386 ;
+			'd11 : backlight <= 'd49949 ;
+			'd12 : backlight <= 'd59939 ;
+			'd13 : backlight <= 'd72783 ;
+			'd14 : backlight <= 'd87054 ;
+			'd15 : backlight <= 'd105606 ;
+			'd16 : backlight <= 'd127013 ;	
+			default : ;
+		endcase
+		end //if button_event
+	end // always
+	
+	always @(posedge LPC_CLK33M_GMUX)
+	begin
+	/// LPC Read Operation
+	/// BACKLIGHT Register, Address 0x0774, 0x0775, 0x0776, 0x0777
+	/// MAX_BACKLIGHT Register, Address 0x0770, 0x0771, 0x0772, 0x0773
+	/// MAJOR_VERSION Register, Address 0x704
+	/// MINOR_VERSION Register, Address 0x705
+	/// RELEASE_VERSION Register, Address 0x706
+	
+		if (rd_en)	begin
+		case(address)
+				'h0704 : data_rd <= 'd1;
+				'h0705 : data_rd <= 'd9;
+				'h0706 : data_rd <= 'd36;
+				'h0770 : data_rd <= max_backlight[7:0];
+				'h0771 : data_rd <= max_backlight[15:8];
+				'h0772 : data_rd <= max_backlight[23:16];
+				'h0773 : data_rd <= max_backlight[31:24];
+				'h0774 : data_rd <= backlight[7:0];
+				'h0775 : data_rd <= backlight[15:8];
+				'h0776 : data_rd <= backlight[23:16];
+				'h0777 : data_rd <= backlight[31:24];
+				default : data_rd <= 'h0;
+		endcase
+		end
+	end
+	
+	
+	// The target frequency for the PWM waveform is 550 Hz
+	// The current frequency obtained is ~200Hz with a counter based on 33MHz
+	//  couting up to MAX_BRIGHTNESS (142711)
+	// This could be improved by manipulation the backlight and max_backlight registers before generating the PWM
+	// The BRIGHTNESS value will directly set the duty cycle
+	
+	reg[16:0] counter_PWM = 0;
+	always @(posedge LPC_CLK33M_GMUX)
 	 begin
 	   counter_PWM <= counter_PWM + 1;
-	   if(counter_PWM>=99) 
+	   if(counter_PWM>=max_backlight) 
 		counter_PWM <= 0;
 	  end
 	
-	assign LCD_BKLT_PWM = (  'b0 &&(duty_cycle=='d0) ||  //ignored by my duty cycle counter
-				(counter_PWM<'d2)&&(duty_cycle=='d1) ||
-				(counter_PWM<'d3)&&(duty_cycle=='d2) ||
-				(counter_PWM<'d4)&&(duty_cycle=='d3) ||
-				(counter_PWM<'d6)&&(duty_cycle=='d4) ||
-				(counter_PWM<'d8)&&(duty_cycle=='d5) ||
-				(counter_PWM<'d11)&&(duty_cycle=='d6) ||
-				(counter_PWM<'d14)&&(duty_cycle=='d7) ||
-				(counter_PWM<'d18)&&(duty_cycle=='d8) ||
-				(counter_PWM<'d24)&&(duty_cycle=='d9) ||
-				(counter_PWM<'d29)&&(duty_cycle=='d10) ||
-				(counter_PWM<'d35)&&(duty_cycle=='d11) ||
-				(counter_PWM<'d42)&&(duty_cycle=='d12) ||
-				(counter_PWM<'d51)&&(duty_cycle=='d13) ||
-				(counter_PWM<'d61)&&(duty_cycle=='d14) ||
-				(counter_PWM<'d74)&&(duty_cycle=='d15) ||
-				(counter_PWM<'d89)&&(duty_cycle=='d16)) ? 1:0 ;		
+	assign LCD_BKLT_PWM = (counter_PWM<backlight) ? 1:0 ;		
+	/////////////////
 
 generate
 	// If PWM mod wire isn't installed
